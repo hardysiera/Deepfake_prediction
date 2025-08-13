@@ -20,125 +20,128 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* Global styles for white background and black text */
+    /* Global Dark Theme Inspired by Netflix */
     html, body, .stApp {
-        background-color: white !important;
-        color: black !important;
+        background: #141414 !important;
+        color: #e5e5e5 !important;
         font-family: 'Inter', sans-serif !important;
     }
 
-    /* Ensure specific Streamlit text components are black on light backgrounds */
-    .stMarkdown, .stText, .stSpinner div, .stProgress div, .stDownloadButton {
-        color: black !important;
-    }
-
-    /* Sidebar background and styling */
-    [data-testid="stSidebar"] {
-        background-color: white !important;
-        color: black !important;
-        box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1);
-        border-radius: 0.75rem !important;
-    }
-
-    /* Headers color */
+    /* Headers */
     h1, h2, h3, h4, h5, h6 {
-        color: black !important;
+        color: #e5e5e5 !important;
+        font-weight: 700 !important;
     }
-
-    /* Title specifically */
     h1 {
         font-size: 3rem !important;
         text-align: center !important;
         margin-bottom: 0.5rem !important;
+        letter-spacing: 1px;
     }
 
-    /* Apply rounded corners and shadows to various Streamlit elements */
-    .stImage > div,
-    .prediction-box,
-    .stDataFrame,
-    .stFileUpload,
-    .stTextInput,
-    .stSelectbox,
-    .stNumberInput,
-    .stDateInput,
-    .stTimeInput,
-    .stCheckbox,
-    .stRadio,
-    .stSlider {
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        background-color: #1f1f1f !important;
+        color: #e5e5e5 !important;
+        box-shadow: 2px 0 5px -2px rgba(0,0,0,0.5);
         border-radius: 0.75rem !important;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        padding: 1rem !important;
     }
 
-    /* File uploader button styling (Green background) */
+    /* File uploader button - green accent */
     .stFileUpload > div > button {
-        background-color: #28a745 !important; /* Green */
+        background-color: #00b894 !important;
         color: white !important;
-        border: 1px solid black !important;
-        padding: 0.5rem 1rem !important;
-        transition: all 0.2s ease-in-out !important;
+        border: none !important;
+        padding: 0.6rem 1.2rem !important;
+        border-radius: 1rem !important;
+        font-weight: 600;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        transition: all 0.3s ease-in-out !important;
     }
     .stFileUpload > div > button:hover {
-        background-color: #218838 !important;
-        transform: translateY(-2px) !important;
+        background-color: #00d88a !important;
+        transform: translateY(-3px) !important;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.4);
     }
     .stFileUpload > div > button:active {
         transform: translateY(0) !important;
-        box-shadow: none !important;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
 
-    /* General button styling */
+    /* General button */
     .stButton > button {
-        background-color: #f0f2f6 !important;
-        color: black !important;
-        border: 1px solid black !important;
-        border-radius: 0.75rem !important;
-        padding: 0.5rem 1rem !important;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        transition: all 0.2s ease-in-out !important;
+        background-color: #2d2d2d !important;
+        color: #00b894 !important;
+        border: 1px solid #00b894 !important;
+        border-radius: 1rem !important;
+        padding: 0.6rem 1.2rem !important;
+        font-weight: 600;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        transition: all 0.3s ease-in-out !important;
     }
     .stButton > button:hover {
-        background-color: #e2e8f0 !important;
+        background-color: #00b894 !important;
+        color: #141414 !important;
         transform: translateY(-2px) !important;
-    }
-    .stButton > button:active {
-        transform: translateY(0) !important;
-        box-shadow: none !important;
+        box-shadow: 0 6px 12px rgba(0,0,0,0.4);
     }
 
-    /* Image display container - smaller size */
+    /* Image container - sleek, centered, shadowed */
     .stImage > div {
-        border: 2px solid black !important;
-        padding: 5px !important;
-        background-color: white !important;
-        max-width: 400px !important; /* smaller images */
-        margin: auto !important; /* center images */
+        border-radius: 1rem !important;
+        max-width: 400px !important;
+        margin: 1rem auto !important;
+        overflow: hidden !important;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+        border: 2px solid #2d2d2d !important;
+        background-color: #1f1f1f !important;
+        transition: transform 0.3s ease;
+    }
+    .stImage > div:hover {
+        transform: scale(1.02);
     }
 
-    /* Prediction result box */
+    /* Prediction box */
     .prediction-box {
-        border: 2px solid black !important;
-        padding: 15px !important;
-        background-color: white !important;
+        border-radius: 1rem !important;
+        background-color: #2d2d2d !important;
+        color: #e5e5e5 !important;
+        padding: 1rem !important;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.5);
         margin-bottom: 1rem;
     }
 
-    /* Dataframe container styling */
+    /* Confidence bars */
+    .altair-Chart svg {
+        background-color: #1f1f1f !important;
+    }
+
+    /* DataFrame styling */
     .stDataFrame {
-        border: 2px solid black !important;
+        border-radius: 1rem !important;
         overflow: hidden !important;
+        border: 2px solid #2d2d2d !important;
+        background-color: #1f1f1f !important;
+        color: #e5e5e5 !important;
     }
 
-    /* Styling for Streamlit's alert boxes (info, success, error) */
+    /* Alerts */
     .stAlert {
-        border-radius: 0.75rem !important;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        border-radius: 1rem !important;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.4);
     }
 
-    /* Ensure text color is white if a dark background were to be introduced */
-    /* (Currently, all backgrounds are light, so text is black for contrast) */
-    .dark-background-element {
-        background-color: black;
-        color: white !important;
+    /* Scrollbar for better aesthetics */
+    ::-webkit-scrollbar {
+        width: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #00b894;
+        border-radius: 5px;
+    }
+    ::-webkit-scrollbar-track {
+        background: #1f1f1f;
     }
     </style>
     """,
