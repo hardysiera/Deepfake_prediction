@@ -6,7 +6,7 @@ Pillow
 altair
 
 # Machine Learning / Deep Learning
-tensorflow
+tensorflow==2.17.0
 
 # OpenCV headless (avoids libGL issues)
 opencv-python-headless
