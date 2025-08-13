@@ -141,7 +141,7 @@ st.markdown(
 # Constants
 # =========================
 IMAGE_SIZE = (240, 240) # Desired image size for model input
-MODEL_PATH = 'optimized_model.tflite' # Path to your TFLite model file
+MODEL_PATH = 'model_optimized.tflite' # Path to your TFLite model file
 THRESHOLD = 0.5 # Probability threshold to classify as fake
 
 # =========================
