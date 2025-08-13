@@ -45,6 +45,13 @@ st.markdown(
         color: black !important;
     }
 
+    /* Title specifically */
+    h1 {
+        font-size: 3rem !important;
+        text-align: center !important;
+        margin-bottom: 0.5rem !important;
+    }
+
     /* Apply rounded corners and shadows to various Streamlit elements */
     .stImage > div,
     .prediction-box,
@@ -62,16 +69,16 @@ st.markdown(
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     }
 
-    /* File uploader button styling */
+    /* File uploader button styling (Green background) */
     .stFileUpload > div > button {
-        background-color: #f0f2f6 !important;
-        color: black !important;
+        background-color: #28a745 !important; /* Green */
+        color: white !important;
         border: 1px solid black !important;
         padding: 0.5rem 1rem !important;
         transition: all 0.2s ease-in-out !important;
     }
     .stFileUpload > div > button:hover {
-        background-color: #e2e8f0 !important;
+        background-color: #218838 !important;
         transform: translateY(-2px) !important;
     }
     .stFileUpload > div > button:active {
@@ -98,11 +105,13 @@ st.markdown(
         box-shadow: none !important;
     }
 
-    /* Image display container */
+    /* Image display container - smaller size */
     .stImage > div {
         border: 2px solid black !important;
         padding: 5px !important;
         background-color: white !important;
+        max-width: 400px !important; /* smaller images */
+        margin: auto !important; /* center images */
     }
 
     /* Prediction result box */
