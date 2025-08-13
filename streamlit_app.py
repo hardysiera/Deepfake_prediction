@@ -20,7 +20,7 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* Global Dark Theme Inspired by Netflix */
+    /* Global Dark Theme */
     html, body, .stApp {
         background: #141414 !important;
         color: #e5e5e5 !important;
@@ -31,12 +31,6 @@ st.markdown(
     h1, h2, h3, h4, h5, h6 {
         color: #e5e5e5 !important;
         font-weight: 700 !important;
-    }
-    h1 {
-        font-size: 3rem !important;
-        text-align: center !important;
-        margin-bottom: 0.5rem !important;
-        letter-spacing: 1px;
     }
 
     /* Sidebar */
@@ -61,11 +55,11 @@ st.markdown(
     }
     .stFileUpload > div > button:hover {
         background-color: #00d88a !important;
-        transform: translateY(-3px) !important;
+        transform: translateY(-3px) scale(1.05) !important;
         box-shadow: 0 8px 20px rgba(0,0,0,0.4);
     }
     .stFileUpload > div > button:active {
-        transform: translateY(0) !important;
+        transform: translateY(0) scale(1) !important;
         box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
 
@@ -79,15 +73,17 @@ st.markdown(
         font-weight: 600;
         box-shadow: 0 4px 8px rgba(0,0,0,0.3);
         transition: all 0.3s ease-in-out !important;
+        margin: 0.2rem !important;
+        min-width: 100px !important;
     }
     .stButton > button:hover {
         background-color: #00b894 !important;
         color: #141414 !important;
-        transform: translateY(-2px) !important;
-        box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+        transform: translateY(-3px) scale(1.05) !important;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.5);
     }
 
-    /* Image container - sleek, centered, shadowed */
+    /* Image container */
     .stImage > div {
         border-radius: 1rem !important;
         max-width: 400px !important;
@@ -112,6 +108,18 @@ st.markdown(
         margin-bottom: 1rem;
     }
 
+    /* Buttons next to image (Real/Fake) */
+    .prediction-buttons {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: flex-start !important;
+        gap: 1rem !important;
+        margin-top: 0.5rem !important;
+    }
+    .prediction-buttons .stButton > button {
+        flex: 1;
+    }
+
     /* Confidence bars */
     .altair-Chart svg {
         background-color: #1f1f1f !important;
@@ -132,7 +140,7 @@ st.markdown(
         box-shadow: 0 8px 20px rgba(0,0,0,0.4);
     }
 
-    /* Scrollbar for better aesthetics */
+    /* Scrollbar */
     ::-webkit-scrollbar {
         width: 10px;
     }
@@ -147,6 +155,7 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 
 IMAGE_SIZE = (240, 240)
 MODEL_PATH = "model_optimized.tflite"
