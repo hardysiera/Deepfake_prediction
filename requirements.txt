@@ -1,7 +1,16 @@
-streamlit>=1.25.0
-tensorflow>=2.14.0
-numpy>=1.23.0
-pandas>=1.5.0
-opencv-python>=4.7.0
-Pillow>=9.5.0
-altair>=5.0.1
+# Core
+streamlit==1.30.0
+numpy==1.25.2
+pandas==2.1.1
+Pillow==10.0.0
+altair==5.0.1
+
+# Machine Learning / Deep Learning
+tensorflow==2.18.0
+
+# OpenCV headless (avoids libGL issues)
+opencv-python-headless==4.8.1.78
+
+# Optional utilities
+scikit-learn==1.3.1
+
