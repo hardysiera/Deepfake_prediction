@@ -24,7 +24,7 @@ st.markdown(
     /* Entire page background */
     body {
         background-color: white;
-        color: black;
+        
     }
 
     /* Sidebar background */
