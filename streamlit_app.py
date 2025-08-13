@@ -5,18 +5,19 @@ from PIL import Image, ImageChops, ImageEnhance
 import tempfile
 import os
 
-# ================= CONFIGURATION =================
+# Config
 IMAGE_SIZE = (240, 240)
 THRESHOLD = 0.5
-TFLITE_MODEL_PATH = "optimized_model.tflite"
+MODEL_PATH = "model_optimized.tflite"
 
-# ================= ELA PREPROCESSING =================
+# --- ELA Function ---
 def perform_ela(image_path, rescale_size=IMAGE_SIZE):
     quality = 90
     image = Image.open(image_path).convert('RGB')
     with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
         temp_path = tmp.name
         image.save(temp_path, 'JPEG', quality=quality)
+
     try:
         compressed = Image.open(temp_path)
         ela_image = ImageChops.difference(image, compressed)
@@ -29,67 +30,72 @@ def perform_ela(image_path, rescale_size=IMAGE_SIZE):
     finally:
         os.remove(temp_path)
 
-def preprocess_ela_image(image_path):
+# --- Preprocess function ---
+def preprocess_image(image_path, input_dtype):
     ela_img = perform_ela(image_path)
     ela_img = tf.image.resize(ela_img, IMAGE_SIZE)
-    ela_img = tf.cast(ela_img, tf.float32)
-    ela_img = tf.keras.applications.efficientnet.preprocess_input(ela_img)
+
+    if input_dtype == np.float32:
+        # Same normalization as EfficientNet training
+        ela_img = tf.cast(ela_img, tf.float32)
+        ela_img = tf.keras.applications.efficientnet.preprocess_input(ela_img)
+    else:
+        # For quantized models, keep as uint8 0-255
+        ela_img = tf.cast(ela_img, tf.uint8)
+
     return np.expand_dims(ela_img, axis=0)
 
-# ================= LOAD TFLITE MODEL =================
-def load_tflite_model(model_path):
-    interpreter = tf.lite.Interpreter(model_path=model_path)
-    interpreter.allocate_tensors()
-    return interpreter
-
-interpreter = load_tflite_model(TFLITE_MODEL_PATH)
+# --- Load TFLite model ---
+interpreter = tf.lite.Interpreter(model_path=MODEL_PATH)
+interpreter.allocate_tensors()
 input_details = interpreter.get_input_details()
 output_details = interpreter.get_output_details()
 
-# ================= PREDICTION FUNCTION =================
-def predict_image(image_path):
-    img_array = preprocess_ela_image(image_path)
-    interpreter.set_tensor(input_details[0]['index'], img_array)
-    interpreter.invoke()
-    prediction = interpreter.get_tensor(output_details[0]['index'])[0][0]  # Assuming binary output
-    return float(prediction)
+input_dtype = input_details[0]['dtype']
 
-# ================= STREAMLIT UI =================
-st.set_page_config(page_title="Deepfake Detection", page_icon="🛡️", layout="centered")
-
-st.markdown(
-    """
-    <style>
-    body {
-        background-color: white;
-        color: black;
-    }
-    .box {
-        border: 2px solid black;
-        padding: 10px;
-        border-radius: 10px;
-        margin-bottom: 10px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-st.title("🛡️ Deepfake Detection")
-st.write("Upload an image to detect if it's Real or Fake using Error Level Analysis (ELA) + EfficientNet.")
-
-uploaded_file = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
+st.title("Deepfake Detection (Debug Mode)")
+uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    img = Image.open(uploaded_file).convert('RGB')
-    img.save("temp_uploaded_image.jpg")
+    with tempfile.NamedTemporaryFile(delete=False) as tmp:
+        tmp.write(uploaded_file.read())
+        tmp_path = tmp.name
 
-    st.image(img, caption="Uploaded Image", use_container_width=True)
+    # Preprocess image
+    input_data = preprocess_image(tmp_path, input_dtype)
 
-    with st.spinner("Analyzing..."):
-        confidence = predict_image("temp_uploaded_image.jpg")
-        label = "Fake" if confidence >= THRESHOLD else "Real"
-        confidence_percentage = confidence * 100 if label == "Fake" else (1 - confidence) * 100
+    # Debug: show preprocessing info
+    st.write("**Input details:**", input_details)
+    st.write("**Model expects dtype:**", input_dtype)
+    st.write("**Preprocessed input shape:**", input_data.shape)
+    st.write("**Input data min/max:**", np.min(input_data), np.max(input_data))
 
-    st.markdown(f"<div class='box'><b>Prediction:</b> {label}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='box'><b>Confidence:</b> {confidence_percentage:.2f}%</div>", unsafe_allow_html=True)
+    # Run inference
+    interpreter.set_tensor(input_details[0]['index'], input_data)
+    interpreter.invoke()
+    raw_output = interpreter.get_tensor(output_details[0]['index'])[0]
+
+    # Debug: Show raw model output
+    st.write("**Raw model output:**", raw_output)
+
+    # Auto-detect output format
+    if len(raw_output.shape) == 0:  # Single scalar
+        fake_prob = float(raw_output)
+    elif len(raw_output) == 1:      # Single probability in array
+        fake_prob = float(raw_output[0])
+    elif len(raw_output) == 2:      # Softmax with 2 outputs
+        # Assuming [real_prob, fake_prob]
+        fake_prob = float(raw_output[1])
+    else:
+        st.error("Unexpected model output shape")
+        fake_prob = None
+
+    # Final prediction
+    if fake_prob is not None:
+        st.write(f"**Fake Probability:** {fake_prob:.4f}")
+        if fake_prob >= THRESHOLD:
+            st.error("Prediction: FAKE")
+        else:
+            st.success("Prediction: REAL")
+
+    os.remove(tmp_path)
