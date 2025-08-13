@@ -19,7 +19,7 @@ st.set_page_config(
 # Constants
 # =========================
 IMAGE_SIZE = (240, 240)
-MODEL_PATH = 'deepfake_inference_model.keras'
+MODEL_PATH = 'optimized_model.tflte'
 THRESHOLD = 0.5
 
 # =========================
