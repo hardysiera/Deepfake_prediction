@@ -11,73 +11,67 @@ import altair as alt
 # =========================
 st.set_page_config(
     page_title="Deepfake Detector",
-    page_icon="🧠",  # Change this to any emoji from the table above
+    page_icon="🛡️",  
     layout="wide"
 )
-# Apply custom CSS for white background, centered heading, black boxes
-st.markdown("""
-    <style>
-    .main {
-        background-color: white;
-        color: black;
-    }
-    .stImage img {
-        border: 2px solid black;
-        border-radius: 5px;
-    }
-    .box {
-        border: 2px solid black;
-        padding: 10px;
-        border-radius: 5px;
-        margin-bottom: 10px;
-    }
-    .center {
-        text-align: center;
-    }
-    </style>
-""", unsafe_allow_html=True)
+
 # =========================
-# Set White Background
+# Custom CSS for styling
 # =========================
 st.markdown(
     """
     <style>
+    /* Page background and font */
     .stApp {
-        background-color: white;
+        background-color: #ffffff;
+        color: #000000;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
-   .stImage img {
-        border: 2px solid black;
-        border-radius: 5px;
+    /* Card styling */
+    .card {
+        border: 2px solid #000000;
+        border-radius: 15px;
+        padding: 15px;
+        margin-bottom: 25px;
+        background-color: #f9f9f9;
+        transition: transform 0.2s, box-shadow 0.2s;
     }
-    .box {
-        border: 2px solid black;
-        padding: 10px;
-        border-radius: 5px;
-        margin-bottom: 10px;
+    .card:hover {
+        transform: scale(1.02);
+        box-shadow: 5px 5px 15px rgba(0,0,0,0.2);
     }
     .center {
         text-align: center;
     }
+    .confidence-bar {
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+    h1, h3, h4 {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
     </style>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True
+)
 
 # =========================
 # Constants
 # =========================
 IMAGE_SIZE = (240, 240)
-TFLITE_MODEL_PATH = "optimized_model.tflite"
+MODEL_PATH = 'deepfake_inference_model.keras'  # Keras or .h5 file
 THRESHOLD = 0.5
 
 # =========================
-# Load TFLite Model
+# Load Model
 # =========================
 @st.cache_resource
-def load_tflite_model():
-    interpreter = tf.lite.Interpreter(model_path=TFLITE_MODEL_PATH)
-    interpreter.allocate_tensors()
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
-    return interpreter, input_details, output_details
+def load_model():
+    try:
+        model = tf.keras.models.load_model(MODEL_PATH)
+        return model
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+        return None
 
 # =========================
 # Preprocess Image
@@ -88,25 +82,22 @@ def preprocess_image(image):
         img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
     img_resized = cv2.resize(img_array, IMAGE_SIZE)
     img_preprocessed = tf.keras.applications.efficientnet.preprocess_input(img_resized)
-    img_batch = np.expand_dims(img_preprocessed, axis=0).astype(np.float32)
+    img_batch = np.expand_dims(img_preprocessed, axis=0)
     return img_batch
 
 # =========================
-# TFLite Prediction
+# Prediction
 # =========================
-def tflite_predict(interpreter, input_details, output_details, img_batch):
-    interpreter.set_tensor(input_details[0]['index'], img_batch)
-    interpreter.invoke()
-    output_data = interpreter.get_tensor(output_details[0]['index'])
-    # Apply sigmoid in case output is logits
-    probability = float(tf.sigmoid(output_data[0][0]))
+def predict_deepfake(model, img_batch):
+    prediction = model.predict(img_batch, verbose=0)
+    probability = float(prediction[0][0])
     is_fake = probability > THRESHOLD
     return is_fake, probability
 
 # =========================
-# Confidence Bar
+# Visual Confidence Bar
 # =========================
-def display_confidence_bar(filename, probability):
+def display_confidence_bar(probability):
     data = pd.DataFrame({
         'Label': ['Real', 'Fake'],
         'Confidence': [1 - probability, probability]
@@ -114,32 +105,39 @@ def display_confidence_bar(filename, probability):
     chart = alt.Chart(data).mark_bar().encode(
         x=alt.X('Confidence:Q', axis=alt.Axis(format='%')),
         y=alt.Y('Label:N', sort=None),
-        color=alt.Color('Label:N', scale=alt.Scale(range=['#2ca02c', '#d62728']))
-    ).properties(width=400, height=80, title=f"Confidence for {filename}")
+        color=alt.Color('Label:N', scale=alt.Scale(range=['#2ca02c', '#d62728'])),
+        tooltip=['Label:N', alt.Tooltip('Confidence:Q', format='.2%')]
+    ).properties(width=400, height=80)
     st.altair_chart(chart)
 
 # =========================
 # Main App
 # =========================
 def main():
+    st.markdown('<h1 class="center">🔍 Deepfake Image Detector</h1>', unsafe_allow_html=True)
     st.markdown(
-        "<h1 style='text-align: center; color: black;'>🔍 Deepfake Image Detector</h1>",
+        '<p class="center">Upload one or multiple images and our AI model (EfficientNetB0) will analyze them. You will see if they are real or deepfake along with a confidence score.</p>',
         unsafe_allow_html=True
     )
-    st.markdown(
-        "<p style='text-align: center; color: black;'>"
-        "Upload one or more images and the model will predict whether they are real or deepfake, "
-        "providing a confidence score for each."
-        "</p>", unsafe_allow_html=True
-    )
-    
-    st.markdown("<hr style='border: 1px solid black;'>", unsafe_allow_html=True)
 
-    interpreter, input_details, output_details = load_tflite_model()
+    # Sidebar info
+    st.sidebar.title("About")
+    st.sidebar.info("""
+    - **Model Architecture:** EfficientNetB0  
+    - **Training:** Fine-tuned on real vs fake images  
+    - **Prediction Threshold:** 0.5  
+    - **Hover over the cards** to see subtle animation effect
+    """)
 
+    # Load model
+    model = load_model()
+    if model is None:
+        st.stop()
+
+    # Upload images
     uploaded_files = st.file_uploader(
-        "Upload JPG, JPEG, or PNG images:",
-        type=["jpg", "jpeg", "png"],
+        "Upload one or more images (JPG, JPEG, PNG):", 
+        type=["jpg", "jpeg", "png"], 
         accept_multiple_files=True
     )
 
@@ -148,21 +146,21 @@ def main():
         for uploaded_file in uploaded_files:
             image = Image.open(uploaded_file)
             img_batch = preprocess_image(image)
-            is_fake, probability = tflite_predict(interpreter, input_details, output_details, img_batch)
+            is_fake, probability = predict_deepfake(model, img_batch)
 
-            # Display image and results
-            col1, col2 = st.columns([1, 2])
-            with col1:
-                st.image(image, caption=uploaded_file.name, use_container_width=True)
-            with col2:
-                st.markdown(
-                    f"<div style='border: 1px solid black; padding: 10px;'>"
-                    f"<h3>Prediction:</h3>"
-                    f"{'FAKE' if is_fake else 'REAL'}<br>"
-                    f"Confidence: {probability*100:.2f}%"
-                    f"</div>", unsafe_allow_html=True
-                )
-                display_confidence_bar(uploaded_file.name, probability)
+            # Card container for each image
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.image(image, caption=uploaded_file.name, use_container_width=True)
+
+            st.markdown('<h3 class="center">Prediction</h3>', unsafe_allow_html=True)
+            if is_fake:
+                st.markdown(f'<h4 style="color:red; text-align:center;">FAKE IMAGE DETECTED</h4>', unsafe_allow_html=True)
+            else:
+                st.markdown(f'<h4 style="color:green; text-align:center;">REAL IMAGE</h4>', unsafe_allow_html=True)
+
+            st.markdown(f'<p class="center" title="Confidence Tooltip">Confidence: <b>{probability*100:.2f}%</b></p>', unsafe_allow_html=True)
+            display_confidence_bar(probability)
+            st.markdown('</div>', unsafe_allow_html=True)
 
             results.append({
                 "Filename": uploaded_file.name,
@@ -171,13 +169,12 @@ def main():
             })
 
         # Summary Table
-        st.markdown("<h2 style='color:black;'>📊 Summary Table</h2>", unsafe_allow_html=True)
+        st.markdown('<h3 class="center">📊 Summary Table</h3>', unsafe_allow_html=True)
         df_results = pd.DataFrame(results)
-        st.dataframe(df_results.style.set_table_styles([
-            {'selector': '', 'props': [('border', '1px solid black')]}
-        ]))
+        st.dataframe(df_results, use_container_width=True)
+
     else:
-        st.info("👆 Please upload images to detect deepfakes.")
+        st.info("👆 Please upload one or more images to test.")
 
 if __name__ == "__main__":
     main()
