@@ -10,10 +10,33 @@ import altair as alt
 # Page Configuration
 # =========================
 st.set_page_config(
-    page_title="Deepfake Image Detector",
+    page_title="Deepfake Detection",
     page_icon="🔍",
     layout="wide"
 )
+
+# Apply custom CSS for white background, centered heading, black boxes
+st.markdown("""
+    <style>
+    .main {
+        background-color: white;
+        color: black;
+    }
+    .stImage img {
+        border: 2px solid black;
+        border-radius: 5px;
+    }
+    .box {
+        border: 2px solid black;
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 10px;
+    }
+    .center {
+        text-align: center;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # =========================
 # Constants
@@ -26,12 +49,16 @@ THRESHOLD = 0.5
 # Load TFLite Model
 # =========================
 @st.cache_resource
-def load_tflite_model(path):
-    interpreter = tf.lite.Interpreter(model_path=path)
-    interpreter.allocate_tensors()
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
-    return interpreter, input_details, output_details
+def load_tflite_model():
+    try:
+        interpreter = tf.lite.Interpreter(model_path=MODEL_PATH)
+        interpreter.allocate_tensors()
+        input_details = interpreter.get_input_details()
+        output_details = interpreter.get_output_details()
+        return interpreter, input_details, output_details
+    except Exception as e:
+        st.error(f"Error loading TFLite model: {e}")
+        return None, None, None
 
 # =========================
 # Preprocess Image
@@ -48,7 +75,7 @@ def preprocess_image(image):
 # =========================
 # TFLite Prediction
 # =========================
-def predict_tflite(interpreter, input_details, output_details, img_batch):
+def tflite_predict(interpreter, input_details, output_details, img_batch):
     interpreter.set_tensor(input_details[0]['index'], img_batch)
     interpreter.invoke()
     output_data = interpreter.get_tensor(output_details[0]['index'])
@@ -57,7 +84,7 @@ def predict_tflite(interpreter, input_details, output_details, img_batch):
     return is_fake, probability
 
 # =========================
-# Visual Confidence Bar
+# Confidence Bar
 # =========================
 def display_confidence_bar(filename, probability):
     data = pd.DataFrame({
@@ -75,27 +102,32 @@ def display_confidence_bar(filename, probability):
 # Main App
 # =========================
 def main():
-    st.title("🔍 Deepfake Image Detector (TFLite)")
+    # Title and description
+    st.markdown("<h1 class='center'>🔍 Deepfake Detection</h1>", unsafe_allow_html=True)
     st.markdown("""
-    This application uses a fine-tuned **EfficientNetB0 TFLite model** to detect whether an image is real or a deepfake.
-    Upload one or multiple images and get instant predictions with confidence metrics.
-    """)
+    <div class='center'>
+    This application uses a fine-tuned **EfficientNetB0** deep learning model to detect whether an image is real or a deepfake.
+    Upload one or multiple images to get instant predictions along with confidence metrics.  
+    Each result is displayed with a confidence bar and summary table.
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Sidebar info
     st.sidebar.title("About")
     st.sidebar.info("""
     - **Model Architecture:** EfficientNetB0  
-    - **Model Format:** TFLite  
+    - **Training:** Fine-tuned on real vs fake images  
     - **Prediction Threshold:** 0.5 (probability above this indicates fake)
     """)
 
-    # Load TFLite model
-    interpreter, input_details, output_details = load_tflite_model(MODEL_PATH)
+    # Load TFLite
+    interpreter, input_details, output_details = load_tflite_model()
+    if interpreter is None:
+        st.stop()
 
     # Upload images
     uploaded_files = st.file_uploader(
-        "Upload one or more images (JPG, JPEG, PNG):", 
-        type=["jpg", "jpeg", "png"], 
+        "Upload one or more images (JPG, JPEG, PNG):",
+        type=["jpg", "jpeg", "png"],
         accept_multiple_files=True
     )
 
@@ -105,23 +137,22 @@ def main():
         for uploaded_file in uploaded_files:
             image = Image.open(uploaded_file)
             img_batch = preprocess_image(image)
-            is_fake, probability = predict_tflite(interpreter, input_details, output_details, img_batch)
+            is_fake, probability = tflite_predict(interpreter, input_details, output_details, img_batch)
 
-            # Display image and result
-            col1, col2 = st.columns([1,2])
+            # Display image and result in black-bordered box
+            st.markdown("<div class='box'>", unsafe_allow_html=True)
+            col1, col2 = st.columns([1, 2])
             with col1:
-                st.image(image, caption=uploaded_file.name, use_column_width=True)
-
+                st.image(image, caption=uploaded_file.name, use_container_width=True)
             with col2:
                 st.subheader("Prediction")
                 if is_fake:
-                    st.error(f"FAKE IMAGE DETECTED")
+                    st.error("FAKE IMAGE DETECTED")
                 else:
-                    st.success(f"REAL IMAGE")
-
+                    st.success("REAL IMAGE")
                 st.write(f"Confidence: **{probability*100:.2f}%**")
-
                 display_confidence_bar(uploaded_file.name, probability)
+            st.markdown("</div>", unsafe_allow_html=True)
 
             results.append({
                 "Filename": uploaded_file.name,
@@ -129,15 +160,16 @@ def main():
                 "Confidence": f"{probability*100:.2f}%"
             })
 
-        # Summary Table
+        # Summary table
         st.markdown("### 📊 Summary Table")
         df_results = pd.DataFrame(results)
-
-        def highlight_rows(row):
+        for _, row in df_results.iterrows():
             color = '#ffcccc' if row['Prediction'] == 'FAKE' else '#ccffcc'
-            return [color]*len(row)
-
-        st.dataframe(df_results.style.apply(highlight_rows, axis=1))
+            st.markdown(
+                f"<div style='background-color:{color}; padding:5px; border-radius:5px; border:2px solid black;'>"
+                f"<b>{row['Filename']}</b> — {row['Prediction']} ({row['Confidence']})</div>",
+                unsafe_allow_html=True
+            )
     else:
         st.info("👆 Please upload one or more images to test.")
 
