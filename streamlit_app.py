@@ -1,325 +1,95 @@
 import streamlit as st
 import numpy as np
 import tensorflow as tf
-from PIL import Image
-import cv2
-import pandas as pd
-import altair as alt
+from PIL import Image, ImageChops, ImageEnhance
+import tempfile
+import os
 
-# =========================
-# Page Configuration
-# =========================
-st.set_page_config(
-    page_title="Deepfake Image Detector",
-    page_icon="🕵️‍♂️",
-    layout="wide"
-)
+# ================= CONFIGURATION =================
+IMAGE_SIZE = (240, 240)
+THRESHOLD = 0.5
+TFLITE_MODEL_PATH = "optimized_model.tflite"
 
-# =========================
-# CSS Styling
-# =========================
+# ================= ELA PREPROCESSING =================
+def perform_ela(image_path, rescale_size=IMAGE_SIZE):
+    quality = 90
+    image = Image.open(image_path).convert('RGB')
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+        temp_path = tmp.name
+        image.save(temp_path, 'JPEG', quality=quality)
+    try:
+        compressed = Image.open(temp_path)
+        ela_image = ImageChops.difference(image, compressed)
+        extrema = ela_image.getextrema()
+        max_diff = max([ex[1] for ex in extrema])
+        scale = 255.0 / max_diff if max_diff != 0 else 1
+        ela_image = ImageEnhance.Brightness(ela_image).enhance(scale)
+        ela_image = ela_image.resize(rescale_size)
+        return np.array(ela_image)
+    finally:
+        os.remove(temp_path)
+
+def preprocess_ela_image(image_path):
+    ela_img = perform_ela(image_path)
+    ela_img = tf.image.resize(ela_img, IMAGE_SIZE)
+    ela_img = tf.cast(ela_img, tf.float32)
+    ela_img = tf.keras.applications.efficientnet.preprocess_input(ela_img)
+    return np.expand_dims(ela_img, axis=0)
+
+# ================= LOAD TFLITE MODEL =================
+def load_tflite_model(model_path):
+    interpreter = tf.lite.Interpreter(model_path=model_path)
+    interpreter.allocate_tensors()
+    return interpreter
+
+interpreter = load_tflite_model(TFLITE_MODEL_PATH)
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
+
+# ================= PREDICTION FUNCTION =================
+def predict_image(image_path):
+    img_array = preprocess_ela_image(image_path)
+    interpreter.set_tensor(input_details[0]['index'], img_array)
+    interpreter.invoke()
+    prediction = interpreter.get_tensor(output_details[0]['index'])[0][0]  # Assuming binary output
+    return float(prediction)
+
+# ================= STREAMLIT UI =================
+st.set_page_config(page_title="Deepfake Detection", page_icon="🛡️", layout="centered")
+
 st.markdown(
     """
     <style>
-    /* Global styles for white background and black text */
-    html, body, .stApp {
-        background-color: white !important;
-        color: black !important;
-        font-family: 'Inter', sans-serif !important;
+    body {
+        background-color: white;
+        color: black;
     }
-
-    /* Ensure specific Streamlit text components are black on light backgrounds */
-    .stMarkdown, .stText, .stSpinner div, .stProgress div, .stDownloadButton {
-        color: black !important;
-    }
-
-    /* Sidebar background and styling */
-    [data-testid="stSidebar"] {
-        background-color: white !important;
-        color: black !important;
-        box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1);
-        border-radius: 0.75rem !important;
-    }
-
-    /* Headers color */
-    h1, h2, h3, h4, h5, h6 {
-        color: black !important;
-    }
-
-    /* Apply rounded corners and shadows to various Streamlit elements */
-    .stImage > div,
-    .prediction-box,
-    .stDataFrame,
-    .stFileUpload,
-    .stTextInput,
-    .stSelectbox,
-    .stNumberInput,
-    .stDateInput,
-    .stTimeInput,
-    .stCheckbox,
-    .stRadio,
-    .stSlider {
-        border-radius: 0.75rem !important;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    }
-
-    /* File uploader button styling */
-    .stFileUpload > div > button {
-        background-color: #f0f2f6 !important;
-        color: black !important;
-        border: 1px solid black !important;
-        padding: 0.5rem 1rem !important;
-        transition: all 0.2s ease-in-out !important;
-    }
-    .stFileUpload > div > button:hover {
-        background-color: #e2e8f0 !important;
-        transform: translateY(-2px) !important;
-    }
-    .stFileUpload > div > button:active {
-        transform: translateY(0) !important;
-        box-shadow: none !important;
-    }
-
-    /* General button styling */
-    .stButton > button {
-        background-color: #f0f2f6 !important;
-        color: black !important;
-        border: 1px solid black !important;
-        border-radius: 0.75rem !important;
-        padding: 0.5rem 1rem !important;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        transition: all 0.2s ease-in-out !important;
-    }
-    .stButton > button:hover {
-        background-color: #e2e8f0 !important;
-        transform: translateY(-2px) !important;
-    }
-    .stButton > button:active {
-        transform: translateY(0) !important;
-        box-shadow: none !important;
-    }
-
-    /* Image display container */
-    .stImage > div {
-        border: 2px solid black !important;
-        padding: 5px !important;
-        background-color: white !important;
-    }
-
-    /* Prediction result box */
-    .prediction-box {
-        border: 2px solid black !important;
-        padding: 15px !important;
-        background-color: white !important;
-        margin-bottom: 1rem;
-    }
-
-    /* Dataframe container styling */
-    .stDataFrame {
-        border: 2px solid black !important;
-        overflow: hidden !important;
-    }
-
-    /* Styling for Streamlit's alert boxes (info, success, error) */
-    .stAlert {
-        border-radius: 0.75rem !important;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    }
-
-    /* Ensure text color is white if a dark background were to be introduced */
-    /* (Currently, all backgrounds are light, so text is black for contrast) */
-    .dark-background-element {
-        background-color: black;
-        color: white !important;
+    .box {
+        border: 2px solid black;
+        padding: 10px;
+        border-radius: 10px;
+        margin-bottom: 10px;
     }
     </style>
     """,
     unsafe_allow_html=True
 )
 
-# =========================
-# Constants
-# =========================
-IMAGE_SIZE = (240, 240) # Desired image size for model input
-MODEL_PATH = 'model_optimized.tflite' # Path to your TFLite model file
-THRESHOLD = 0.5 # Probability threshold to classify as fake
+st.title("🛡️ Deepfake Detection")
+st.write("Upload an image to detect if it's Real or Fake using Error Level Analysis (ELA) + EfficientNet.")
 
-# =========================
-# Load TFLite Model
-# =========================
-@st.cache_resource # Caches the loaded model
-def load_tflite_model():
-    """
-    Loads the TFLite model from the specified path.
-    Handles potential errors during model loading.
-    """
-    try:
-        interpreter = tf.lite.Interpreter(model_path=MODEL_PATH)
-        interpreter.allocate_tensors()
-        input_details = interpreter.get_input_details()
-        output_details = interpreter.get_output_details()
-        return interpreter, input_details, output_details
-    except Exception as e:
-        st.error(f"🚨 **Error:** Could not load the TFLite model from `{MODEL_PATH}`. "
-                 "Please ensure the `optimized_model.tflite` file is in the same directory as this script. "
-                 f"**Details:** `{e}`")
-        return None, None, None
+uploaded_file = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
 
-# =========================
-# Preprocess Image
-# =========================
-def preprocess_image(image):
-    """
-    Preprocesses the input image for model inference.
-    Steps: Convert PIL Image to numpy array, resize, apply EfficientNet preprocessing,
-    and expand dimensions for batch prediction.
-    """
-    img_array = np.array(image) # Convert PIL Image object to NumPy array (RGB format)
+if uploaded_file is not None:
+    img = Image.open(uploaded_file).convert('RGB')
+    img.save("temp_uploaded_image.jpg")
 
-    # Note: EfficientNet preprocessing generally expects RGB input.
-    # The line `img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)` was removed
-    # in a previous iteration to ensure RGB input to EfficientNet's preprocess_input.
-    # If your model specifically requires BGR input, this line might need to be re-enabled.
+    st.image(img, caption="Uploaded Image", use_container_width=True)
 
-    img_resized = cv2.resize(img_array, IMAGE_SIZE) # Resize image to model's expected input size
-    # Apply EfficientNet's specific preprocessing (e.g., scaling)
-    img_preprocessed = tf.keras.applications.efficientnet.preprocess_input(img_resized)
-    # Add a batch dimension and ensure float32 type
-    img_batch = np.expand_dims(img_preprocessed, axis=0).astype(np.float32)
-    return img_batch
+    with st.spinner("Analyzing..."):
+        confidence = predict_image("temp_uploaded_image.jpg")
+        label = "Fake" if confidence >= THRESHOLD else "Real"
+        confidence_percentage = confidence * 100 if label == "Fake" else (1 - confidence) * 100
 
-# =========================
-# Predict Deepfake
-# =========================
-def tflite_predict(interpreter, input_details, output_details, img_batch):
-    """
-    Performs inference using the loaded TFLite interpreter.
-    """
-    interpreter.set_tensor(input_details[0]['index'], img_batch)
-    interpreter.invoke()
-    output_data = interpreter.get_tensor(output_details[0]['index'])
-    probability = float(output_data[0][0])
-    is_fake = probability > THRESHOLD
-    return is_fake, probability
-
-# =========================
-# Display Confidence Bar
-# =========================
-def display_confidence_bar(filename, probability):
-    """
-    Displays a horizontal bar chart visualizing the confidence of
-    "Real" vs. "Fake" predictions.
-    """
-    data = pd.DataFrame({
-        'Label': ['Real', 'Fake'],
-        'Confidence': [1 - probability, probability]
-    })
-    
-    chart = alt.Chart(data).mark_bar().encode(
-        x=alt.X('Confidence:Q', axis=alt.Axis(format='.1%', title='Confidence')),
-        y=alt.Y('Label:N', sort=None, title=''),
-        color=alt.Color('Label:N', scale=alt.Scale(range=['#28a745', '#dc3545']), legend=None)
-    ).properties(
-        width=400,
-        height=70,
-        title={
-            "text": f"Confidence for {filename}",
-            "anchor": "middle",
-            "fontSize": 16,
-            "color": "black"
-        }
-    ).configure_axis(
-        labelColor='black',
-        titleColor='black'
-    ).configure_view(
-        stroke='transparent'
-    )
-    st.altair_chart(chart, use_container_width=True)
-
-# =========================
-# Main App
-# =========================
-def main():
-    """
-    Main function to run the Streamlit Deepfake Image Detector application.
-    """
-    st.markdown("<h1 style='text-align: center; font-size: 3.5rem; margin-bottom: 0.5rem;'>🕵️‍♂️ Deepfake Image Detector</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; font-size: 1.1rem; color: #555;'>Unmasking synthetic imagery with AI</p>", unsafe_allow_html=True)
-    st.markdown("---")
-
-    st.markdown("""
-    This application utilizes a **fine-tuned EfficientNetB0 TFLite model** to discern whether an image is
-    authentic or synthetically generated. Upload one or more images below for analysis.
-    """)
-
-    # Sidebar for 'About' information
-    st.sidebar.title("✨ About This Detector")
-    st.sidebar.info("""
-    - **Model Architecture:** EfficientNetB0 (efficient convolutional neural network)
-    - **Model Type:** TFLite Optimized (fast, on-device inference)
-    - **Prediction Threshold:** Images with a probability greater than `0.5` are classified as fake.
-    - **Supported Uploads:** JPG, JPEG, PNG images
-    """)
-    st.sidebar.markdown("---")
-
-    # Load TFLite model at the start
-    interpreter, input_details, output_details = load_tflite_model()
-    if interpreter is None:
-        st.stop()
-
-    st.markdown("---")
-    st.subheader("📤 Upload Your Images for Analysis")
-    uploaded_files = st.file_uploader(
-        "Choose image files (JPG, JPEG, PNG):",
-        type=["jpg", "jpeg", "png"],
-        accept_multiple_files=True,
-        help="Upload one or more images to check authenticity. Max file size: 200MB."
-    )
-
-    if uploaded_files:
-        results = []
-        st.markdown("---")
-        st.subheader("🔍 Analysis Results")
-
-        for uploaded_file in uploaded_files:
-            image = Image.open(uploaded_file)
-            st.write(f"### Analyzing: **{uploaded_file.name}**")
-
-            with st.spinner("Processing image and making a prediction..."):
-                img_batch = preprocess_image(image)
-                is_fake, probability = tflite_predict(interpreter, input_details, output_details, img_batch)
-
-            col1, col2 = st.columns([1, 2])
-
-            with col1:
-                st.image(image, caption=f"Uploaded: {uploaded_file.name}", use_container_width=True)
-
-            with col2:
-                st.markdown(f"<div class='prediction-box'>", unsafe_allow_html=True)
-                st.markdown("<h3 style='margin-top: 0; color: black;'>Prediction Outcome</h3>", unsafe_allow_html=True)
-
-                if is_fake:
-                    st.error("🚨 **FAKE IMAGE DETECTED!** This image likely originated from an AI.")
-                else:
-                    st.success("✅ **REAL IMAGE.** This image appears to be authentic.")
-
-                st.markdown(f"**Confidence:** `{probability*100:.2f}%`")
-                display_confidence_bar(uploaded_file.name, probability)
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            results.append({
-                "Filename": uploaded_file.name,
-                "Prediction": "FAKE" if is_fake else "REAL",
-                "Confidence": f"{probability*100:.2f}%"
-            })
-            st.markdown("---")
-
-        st.markdown("### 📊 Overall Summary")
-        df_results = pd.DataFrame(results)
-        st.dataframe(df_results, use_container_width=True)
-    else:
-        st.info("👆 Please upload one or more images above to initiate the deepfake detection process.")
-        st.markdown("---")
-
-if __name__ == "__main__":
-    main()
+    st.markdown(f"<div class='box'><b>Prediction:</b> {label}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='box'><b>Confidence:</b> {confidence_percentage:.2f}%</div>", unsafe_allow_html=True)
