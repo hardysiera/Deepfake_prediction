@@ -268,8 +268,7 @@ def main():
     - **Prediction Threshold:** `0.5` (images with a probability greater than `0.5` are classified as fake)
     - **Supported Uploads:** JPG, JPEG, PNG image formats
     """)
-    st.sidebar.markdown("---")
-    st.sidebar.caption("Developed with ❤️ by Gemini")
+    
 
     # Load TFLite model at the start
     interpreter, input_details, output_details = load_tflite_model()
